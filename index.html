@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aventura en la Ciudad - Dark</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Gris oscuro */
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+        .space {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            color: #1f2937; /* Texto oscuro en casillas claras */
+        }
+        .player-token {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #ffffff; /* Borde blanco */
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            animation: pulse 1s infinite alternate;
+            z-index: 10;
+        }
+
+        /* Clases de tokens dinámicas */
+        .token-0 { background-color: #f87171; } /* Rojo */
+        .token-1 { background-color: #60a5fa; } /* Azul */
+        .token-2 { background-color: #4ade80; } /* Verde */
+        .token-3 { background-color: #facc15; } /* Amarillo */
+
+        /* Ajuste de posición de tokens para múltiples jugadores */
+        .space > .player-token:nth-child(1) { top: 5px; left: 5px; }
+        .space > .player-token:nth-child(2) { top: 5px; right: 5px; }
+        .space > .player-token:nth-child(3) { bottom: 5px; left: 5px; }
+        .space > .player-token:nth-child(4) { bottom: 5px; right: 5px; }
+
+
+        .highlight-current {
+            box-shadow: 0 0 15px rgba(234, 179, 8, 0.9);
+            border: 3px solid #eab308; /* Amarillo brillante */
+        }
+
+        .roll-button {
+            transition: transform 0.1s ease;
+        }
+        .roll-button:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.1); }
+        }
+
+        /* Responsive board layout for mobile */
+        @media (max-width: 640px) {
+            .board {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .space {
+                height: 60px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen flex items-center justify-center">
+
+    <div class="w-full max-w-4xl bg-gray-700 rounded-xl shadow-2xl p-6 md:p-10 border-4 border-yellow-600">
+        <h1 class="text-3xl sm:text-4xl font-black text-center mb-6 text-white">
+            🎲 Aventura en la Ciudad 🏙️
+        </h1>
+
+        <!-- PANTALLA DE CONFIGURACIÓN DE JUGADORES -->
+        <div id="setup-screen" class="space-y-6">
+            <h2 class="text-2xl font-bold text-yellow-300 text-center">Configuración de Jugadores</h2>
+            <div id="player-inputs" class="space-y-3 bg-gray-800 p-4 rounded-lg shadow-inner">
+                <!-- Inputs generados por JS -->
+            </div>
+            
+            <div class="flex justify-center space-x-4">
+                <button id="add-player-button" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-200 shadow-md disabled:opacity-50">
+                    Añadir Jugador (Máx. 4)
+                </button>
+                <button id="start-game-button" onclick="startGame()" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 shadow-md disabled:opacity-50" disabled>
+                    ¡Empezar Juego!
+                </button>
+            </div>
+        </div>
+
+        <!-- PANTALLA DEL JUEGO (Oculta al inicio) -->
+        <div id="game-screen" class="hidden">
+            <!-- Contenedor del Tablero -->
+            <div id="board-container" class="board mx-auto max-w-xl mb-8">
+                <!-- Los espacios se generan con JavaScript -->
+            </div>
+
+            <!-- Área de Estado y Control -->
+            <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Columna 1: Info del Jugador -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow-inner flex flex-col justify-between text-white">
+                    <div>
+                        <h2 class="text-xl font-bold mb-3 text-yellow-300">Turno Actual</h2>
+                        <p id="current-player-status" class="text-2xl font-extrabold p-2 rounded-md transition duration-300 bg-gray-900">
+                            <!-- Estado dinámico -->
+                        </p>
+                        <div id="player-legend" class="mt-4 text-sm space-y-1">
+                            <!-- Leyenda generada por JS -->
+                        </div>
+                    </div>
+                    <button id="reset-button" onclick="showSetupScreen()" class="mt-4 bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 shadow-md">
+                        Reiniciar/Cambiar Jugadores
+                    </button>
+                </div>
+
+                <!-- Columna 2: Control del Dado -->
+                <div class="bg-yellow-800 p-4 rounded-lg shadow-inner flex flex-col items-center justify-center">
+                    <h2 class="text-xl font-bold mb-4 text-white">Lanzar el Dado</h2>
+                    <div id="dice-result" class="text-6xl font-black text-white mb-4 transition transform duration-300 ease-out">?</div>
+                    <button id="roll-button" onclick="rollDice()" class="roll-button w-full max-w-xs bg-yellow-500 text-gray-900 font-extrabold text-lg py-3 rounded-xl hover:bg-yellow-600 transition duration-200 shadow-lg hover:shadow-xl disabled:opacity-50">
+                        ¡Lanzar!
+                    </button>
+                </div>
+
+                <!-- Columna 3: Log / Eventos -->
+                <div class="bg-blue-800 p-4 rounded-lg shadow-inner overflow-y-auto max-h-48 lg:max-h-full">
+                    <h2 class="text-xl font-bold mb-3 text-white">Registro de Acontecimientos</h2>
+                    <div id="game-log" class="text-sm space-y-2">
+                        <p class="p-1 bg-blue-900 rounded-md text-blue-300">¡Configura los nombres para empezar!</p>
+                    </div>
+                    <div id="loading-spinner" class="hidden text-blue-300 mt-2 font-semibold">
+                        Cargando desafío de la IA...
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- CONSTANTES Y CONFIGURACIÓN ---
+        const BOARD_SIZE = 20;
+        const MAX_PLAYERS = 4;
+        const SPECIAL_SPACES = {
+            3: { type: 'Forward', value: 2, label: 'Atajo 🚀' },
+            7: { type: 'Challenge', label: 'Desafío ❓' },
+            12: { type: 'Backward', value: 3, label: 'Bache 🛑' },
+            16: { type: 'Challenge', label: 'Desafío ❓' },
+            19: { type: 'Forward', value: 1, label: 'Sprint Final ✨' }
+        };
+
+        const PLAYER_COLORS = [
+            { name: 'Rojo', hex: '#f87171', tokenClass: 'token-0' },
+            { name: 'Azul', hex: '#60a5fa', tokenClass: 'token-1' },
+            { name: 'Verde', hex: '#4ade80', tokenClass: 'token-2' },
+            { name: 'Amarillo', hex: '#facc15', tokenClass: 'token-3' }
+        ];
+
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
+        const API_KEY = ""; 
+
+        // --- ESTADO DEL JUEGO ---
+        let players = [];
+        let currentPlayerIndex = 0; // Index in the players array
+        let isRolling = false;
+
+        // --- REFERENCIAS AL DOM ---
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const playerInputsContainer = document.getElementById('player-inputs');
+        const addPlayerButton = document.getElementById('add-player-button');
+        const startGameButton = document.getElementById('start-game-button');
+        
+        const boardContainer = document.getElementById('board-container');
+        const currentPlayerStatus = document.getElementById('current-player-status');
+        const diceResultElement = document.getElementById('dice-result');
+        const rollButton = document.getElementById('roll-button');
+        const gameLog = document.getElementById('game-log');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const playerLegend = document.getElementById('player-legend');
+
+        // --- FUNCIONES DE UTILIDAD ---
+
+        /**
+         * Realiza una pausa (usado para el backoff).
+         * @param {number} ms - Milisegundos para esperar.
+         */
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        /**
+         * Agrega un mensaje al registro del juego.
+         * @param {string} message - El mensaje a mostrar.
+         * @param {string} className - Clases de Tailwind para estilizar.
+         */
+        function log(message, className = 'text-gray-200 bg-gray-900') {
+            const p = document.createElement('p');
+            p.innerHTML = message;
+            p.className = `p-1 rounded-md ${className}`;
+            gameLog.prepend(p);
+            while (gameLog.children.length > 50) {
+                gameLog.removeChild(gameLog.lastChild);
+            }
+        }
+        
+        // --- LÓGICA DE CONFIGURACIÓN ---
+
+        /**
+         * Muestra la pantalla de configuración y oculta el juego.
+         */
+        function showSetupScreen() {
+            gameScreen.classList.add('hidden');
+            setupScreen.classList.remove('hidden');
+            players = [];
+            currentPlayerIndex = 0;
+            updatePlayerInputs();
+            log('¡Juego Reiniciado! Configura nuevos jugadores.', 'text-blue-300 bg-blue-900');
+        }
+
+        /**
+         * Actualiza dinámicamente los campos de entrada de jugadores.
+         */
+        function updatePlayerInputs() {
+            playerInputsContainer.innerHTML = '';
+            
+            // Asegurar que al menos haya 2 jugadores al inicio
+            while (players.length < 2) {
+                players.push({ 
+                    id: players.length, 
+                    name: `Jugador ${players.length + 1}`, 
+                    position: 1, 
+                    color: PLAYER_COLORS[players.length].tokenClass 
+                });
+            }
+
+            players.forEach((player, index) => {
+                const colorInfo = PLAYER_COLORS[index];
+                
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-3';
+                div.innerHTML = `
+                    <span class="w-4 h-4 rounded-full ${colorInfo.tokenClass} shadow-md"></span>
+                    <label for="player-name-${index}" class="text-white font-medium">${colorInfo.name}:</label>
+                    <input type="text" id="player-name-${index}" value="${player.name}" placeholder="${colorInfo.name}..."
+                           oninput="updatePlayerName(${index}, this.value)"
+                           class="flex-grow p-2 rounded-lg bg-gray-600 border border-gray-500 text-white placeholder-gray-400 focus:ring-yellow-500 focus:border-yellow-500">
+                `;
+                playerInputsContainer.appendChild(div);
+            });
+
+            addPlayerButton.disabled = players.length >= MAX_PLAYERS;
+            startGameButton.disabled = players.length < 2 || players.some(p => p.name.trim() === '');
+        }
+
+        /**
+         * Actualiza el nombre de un jugador en el estado.
+         * @param {number} index - Índice del jugador.
+         * @param {string} name - Nuevo nombre.
+         */
+        function updatePlayerName(index, name) {
+            players[index].name = name.trim();
+            startGameButton.disabled = players.length < 2 || players.some(p => p.name.trim() === '');
+        }
+
+        /**
+         * Añade un nuevo jugador.
+         */
+        function addPlayer() {
+            if (players.length < MAX_PLAYERS) {
+                players.push({
+                    id: players.length,
+                    name: `Jugador ${players.length + 1}`,
+                    position: 1,
+                    color: PLAYER_COLORS[players.length].tokenClass
+                });
+                updatePlayerInputs();
+            }
+        }
+
+        /**
+         * Inicia el juego con la configuración actual de jugadores.
+         */
+        function startGame() {
+            if (players.length < 2 || players.length > MAX_PLAYERS || players.some(p => p.name.trim() === '')) {
+                log("Asegúrate de tener entre 2 y 4 jugadores y todos los nombres completados.", 'text-red-400 bg-red-900');
+                return;
+            }
+
+            // Inicializar posiciones y turno
+            players.forEach(p => p.position = 1);
+            currentPlayerIndex = 0;
+            isRolling = false;
+
+            // Transicionar a la pantalla de juego
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            initializeBoard();
+            updateTurnStatus();
+            updateBoardHighlight();
+            
+            rollButton.disabled = false;
+            rollButton.textContent = '¡Lanzar!';
+            log(`¡El juego ha comenzado con ${players.length} jugadores! El turno es para ${players[currentPlayerIndex].name}.`, 'text-green-400 bg-green-900');
+        }
+
+        // --- LÓGICA DEL JUEGO ---
+
+        /**
+         * Genera el tablero y los tokens de los jugadores.
+         */
+        function initializeBoard() {
+            boardContainer.innerHTML = ''; 
+            
+            for (let i = 1; i <= BOARD_SIZE; i++) {
+                const space = document.createElement('div');
+                space.id = `space-${i}`;
+                space.className = 'space transition-colors duration-300';
+                
+                const special = SPECIAL_SPACES[i];
+                let bgColor = 'bg-green-400'; // Casillas normales verdes
+                let label = `Casilla ${i}`;
+
+                if (i === 1) {
+                    bgColor = 'bg-green-600 text-white';
+                    label = 'SALIDA';
+                } else if (i === BOARD_SIZE) {
+                    bgColor = 'bg-purple-600 text-white';
+                    label = 'META 🎉';
+                } else if (special) {
+                    label = special.label;
+                    if (special.type === 'Forward') bgColor = 'bg-indigo-400'; // Atajo
+                    else if (special.type === 'Backward') bgColor = 'bg-red-400'; // Bache
+                    else if (special.type === 'Challenge') bgColor = 'bg-yellow-400'; // Desafío
+                }
+                
+                space.classList.add(bgColor);
+                space.innerHTML = `<span class="text-xs sm:text-base">${label}</span>`;
+                boardContainer.appendChild(space);
+            }
+
+            // Crear tokens y colocarlos en la casilla 1
+            const startSpace = document.getElementById('space-1');
+            players.forEach(player => {
+                const token = document.createElement('div');
+                token.id = `token-${player.id}`;
+                token.className = `player-token ${player.color}`;
+                startSpace.appendChild(token);
+            });
+            
+            updatePlayerLegend();
+        }
+
+        /**
+         * Actualiza la posición visual de un jugador.
+         * @param {number} playerId - ID del jugador (índice 0 a 3).
+         * @param {number} newPosition - Nueva posición (1 a BOARD_SIZE).
+         */
+        function updatePlayerPosition(playerId, newPosition) {
+            const token = document.getElementById(`token-${playerId}`);
+            const player = players.find(p => p.id === playerId);
+            const oldSpace = document.getElementById(`space-${player.position}`);
+            const newSpace = document.getElementById(`space-${newPosition}`);
+            
+            if (oldSpace && token.parentNode === oldSpace) {
+                oldSpace.removeChild(token);
+            }
+
+            if (newSpace) {
+                newSpace.appendChild(token);
+            }
+            player.position = newPosition;
+            updateBoardHighlight();
+        }
+
+        /**
+         * Actualiza el estado del jugador actual y la leyenda.
+         */
+        function updateTurnStatus() {
+            const currentPlayer = players[currentPlayerIndex];
+            currentPlayerStatus.textContent = `${currentPlayer.name}`;
+            const colorClass = currentPlayer.color.replace('token-', 'bg-');
+            currentPlayerStatus.className = `text-2xl font-extrabold p-2 rounded-lg transition duration-300 ${colorClass}-100 text-${colorClass}-700`;
+            rollButton.disabled = isRolling;
+            rollButton.textContent = isRolling ? 'Moviendo...' : '¡Lanzar!';
+        }
+
+        /**
+         * Actualiza la leyenda de jugadores.
+         */
+        function updatePlayerLegend() {
+            playerLegend.innerHTML = players.map(player => {
+                const colorCode = PLAYER_COLORS[player.id].hex;
+                return `
+                    <div class="flex items-center">
+                        <span style="background-color: ${colorCode};" class="inline-block w-3 h-3 rounded-full mr-2 shadow-md"></span>
+                        <span class="font-bold">${player.name}</span>
+                        <span class="ml-auto text-yellow-300">Posición: ${player.position}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Resalta la casilla actual de los jugadores.
+         */
+        function updateBoardHighlight() {
+            document.querySelectorAll('.space').forEach(space => {
+                space.classList.remove('highlight-current');
+            });
+            
+            players.forEach(player => {
+                const space = document.getElementById(`space-${player.position}`);
+                if (space) space.classList.add('highlight-current');
+            });
+            updatePlayerLegend();
+        }
+
+
+        /**
+         * Llama a la API de Gemini para generar un desafío.
+         * @returns {Promise<object>} Objeto con el texto del desafío y el movimiento.
+         */
+        async function getChallengeFromAI() {
+            const currentPlayer = players[currentPlayerIndex];
+            const playerName = currentPlayer.name;
+            const prompt = `Actúa como un narrador de juegos de mesa. Crea un evento aleatorio de una sola oración para el jugador ${playerName} que está en una "Aventura de la Ciudad". El evento debe ser divertido y especificar claramente si el jugador avanza o retrocede 1, 2, o 3 espacios. **Formato Requerido:** Inicia con la frase del evento y finaliza con la frase de movimiento, por ejemplo: "¡Un gato te distrae con un truco genial! Retrocedes 1 espacio." o "Encuentras un atajo secreto en el metro. Avanzas 3 espacios."`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: {
+                    parts: [{ text: "Eres un divertido y creativo narrador de eventos para un juego de mesa." }]
+                }
+            };
+            
+            const url = `${API_URL}?key=${API_KEY}`;
+            let retries = 0;
+            const maxRetries = 3;
+
+            loadingSpinner.classList.remove('hidden');
+
+            while (retries < maxRetries) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status === 429) { 
+                        retries++;
+                        const delay = Math.pow(2, retries) * 1000;
+                        await sleep(delay);
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (!text) {
+                        throw new Error("Respuesta de la IA vacía o mal formada.");
+                    }
+
+                    const match = text.match(/(Avanzas|Retrocedes)\s(\d+)\sespacio(s)?/i);
+                    
+                    let movement = 0;
+                    if (match) {
+                        const direction = match[1].toLowerCase();
+                        const steps = parseInt(match[2], 10);
+                        movement = (direction === 'avanzas') ? steps : -steps;
+                    }
+
+                    return { text, movement };
+
+                } catch (error) {
+                    console.error("Error al llamar a Gemini API:", error);
+                    retries++;
+                    const delay = Math.pow(2, retries) * 1000;
+                    await sleep(delay);
+                }
+            }
+
+            // Falla después de reintentos
+            return {
+                text: "⚠️ ¡La conexión falló! El desafío fue: un bache en la carretera te hace perder el control. Retrocedes 2 espacios.",
+                movement: -2
+            };
+        }
+
+        /**
+         * Maneja el movimiento después de tirar el dado o recibir un desafío de la IA.
+         * @param {number} steps - El número de pasos a mover.
+         */
+        async function movePlayer(steps) {
+            const player = players[currentPlayerIndex];
+            const currentPosition = player.position;
+            let newPosition = currentPosition + steps;
+
+            if (newPosition < 1) newPosition = 1;
+            
+            // Simular el movimiento paso a paso (visual)
+            const stepDirection = steps > 0 ? 1 : -1;
+            const absoluteSteps = Math.abs(steps);
+            
+            for (let i = 0; i < absoluteSteps; i++) {
+                const stepPosition = player.position + stepDirection;
+                const finalStepPosition = Math.min(Math.max(1, stepPosition), BOARD_SIZE);
+
+                updatePlayerPosition(player.id, finalStepPosition);
+                await sleep(200); 
+                
+                if (finalStepPosition === BOARD_SIZE) break;
+            }
+
+            // Realizar acción final en la casilla
+            const finalSpace = player.position;
+            const special = SPECIAL_SPACES[finalSpace];
+            
+            let nextTurn = true; 
+
+            if (finalSpace >= BOARD_SIZE) {
+                log(`🏆 ¡${player.name} ha llegado a la META y ha GANADO!`, 'text-purple-400 font-bold bg-purple-900');
+                rollButton.disabled = true;
+                rollButton.textContent = '¡JUEGO TERMINADO!';
+                isRolling = false;
+                return;
+            }
+            
+            if (special) {
+                if (special.type === 'Forward' || special.type === 'Backward') {
+                    log(`${player.name} cayó en ${special.label}. Se mueve ${special.value} pasos ${special.type === 'Forward' ? 'adelante' : 'atrás'}.`, 'text-yellow-300 bg-yellow-900');
+                    await movePlayer(special.type === 'Forward' ? special.value : -special.value);
+                    return; 
+                } else if (special.type === 'Challenge') {
+                    nextTurn = false; 
+                    rollButton.disabled = true;
+                    rollButton.textContent = 'ESPERANDO DESAFÍO...';
+                    
+                    log(`${player.name} cayó en ${special.label}. La IA generará un evento...`, 'text-blue-300 bg-blue-900 font-semibold');
+                    
+                    const challengeResult = await getChallengeFromAI();
+                    
+                    loadingSpinner.classList.add('hidden');
+                    
+                    log(`🤖 Desafío AI para ${player.name}: ${challengeResult.text}`, 'text-pink-300 bg-pink-900 font-bold');
+                    
+                    if (challengeResult.movement !== 0) {
+                        await movePlayer(challengeResult.movement);
+                    }
+                    
+                    nextTurn = true;
+                }
+            }
+
+            if (nextTurn) {
+                currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+                updateTurnStatus();
+                isRolling = false;
+            }
+        }
+
+        /**
+         * Lanza el dado y comienza el movimiento.
+         */
+        async function rollDice() {
+            if (isRolling) return;
+            isRolling = true;
+            rollButton.disabled = true;
+            
+            const roll = Math.floor(Math.random() * 6) + 1;
+            
+            diceResultElement.textContent = '...';
+            await sleep(500);
+            diceResultElement.textContent = roll;
+
+            log(`${players[currentPlayerIndex].name} lanza un ${roll}.`, `text-yellow-300 font-semibold bg-gray-900`);
+            
+            await movePlayer(roll);
+
+            isRolling = false;
+            if (players.every(p => p.position < BOARD_SIZE)) {
+                 updateTurnStatus(); 
+            }
+        }
+
+        // --- INICIALIZACIÓN ---
+        addPlayerButton.addEventListener('click', addPlayer);
+        window.onload = showSetupScreen;
+    </script>
+</body>
+</html>
